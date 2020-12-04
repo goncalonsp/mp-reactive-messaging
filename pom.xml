@@ -9,7 +9,7 @@
 
     <modules>
         <module>events</module>
-        <module>one</module>
+        <module>implementation1</module>
     </modules>
 
     <properties>

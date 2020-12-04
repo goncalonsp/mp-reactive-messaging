@@ -9,7 +9,7 @@
     </parent>
     <modelVersion>4.0.0</modelVersion>
 
-    <artifactId>one</artifactId>
+    <artifactId>implementation1</artifactId>
 
     <properties>
         <kafka_2.13.version>2.5.1</kafka_2.13.version>
