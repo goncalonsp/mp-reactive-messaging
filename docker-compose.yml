@@ -1,0 +1,70 @@
+version: '3'
+
+services:
+  pipeline:
+    build:
+      context: ${APP:-implementation1}
+      dockerfile: src/main/docker/Dockerfile.jvm
+    image: reactive-messaging-app
+    container_name: pipeline
+    restart: on-failure
+    depends_on:
+      - kafka
+      - kafka-create-topics
+    environment:
+      - KAFKA_BOOTSTRAP_SERVERS=kafka:19092
+
+  kafka:
+    # adapted from from https://github.com/simplesteph/kafka-stack-docker-compose/blob/master/zk-single-kafka-single.yml
+    image: confluentinc/cp-kafka:5.4.0
+    container_name: kafka
+    hostname: kafka
+    ports:
+      - "9092:9092"
+    environment:
+      KAFKA_ADVERTISED_LISTENERS: LISTENER_DOCKER_INTERNAL://kafka:19092,LISTENER_DOCKER_EXTERNAL://localhost:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: LISTENER_DOCKER_INTERNAL:PLAINTEXT,LISTENER_DOCKER_EXTERNAL:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: LISTENER_DOCKER_INTERNAL
+      KAFKA_ZOOKEEPER_CONNECT: "zookeeper:2181"
+      KAFKA_BROKER_ID: 1
+      KAFKA_LOG4J_LOGGERS: "kafka.controller=INFO,kafka.producer.async.DefaultEventHandler=INFO,state.change.logger=INFO"
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+    volumes:
+      - "./infra/kafka/:/tmp/tools/"
+    depends_on:
+      - zookeeper
+
+  zookeeper:
+    # adapted from from https://github.com/simplesteph/kafka-stack-docker-compose/blob/master/zk-single-kafka-single.yml
+    image: zookeeper:3.4.9
+    container_name: zookeeper
+    hostname: zookeeper
+    ports:
+      - "2181:2181"
+    environment:
+      ZOO_MY_ID: 1
+      ZOO_PORT: 2181
+      ZOO_SERVERS: server.1=zoo1:2888:3888
+
+  kafka-create-topics:
+    # adapted from https://github.com/confluentinc/examples/blob/5.4.1-post/ccloud/docker-compose.yml
+    image: confluentinc/cp-kafka:5.4.0
+    hostname: kafka-create-topics
+    container_name: kafka-create-topics
+    depends_on:
+      - kafka
+    # We defined a dependency on "kafka", but `depends_on` will NOT wait for the
+    # dependencies to be "ready" before starting the "kafka-create-topics"
+    # container;  it waits only until the dependencies have started.  Hence we
+    # must control startup order more explicitly.
+    # See https://docs.docker.com/compose/startup-order/
+    command: "bash -c 'echo Waiting for Kafka to be ready... && \
+                       cub kafka-ready -b kafka:19092 1 20 ; \
+                       kafka-topics --zookeeper zookeeper:2181 --create --topic utterances --partitions 1 --replication-factor 1 ; \
+                       kafka-topics --zookeeper zookeeper:2181 --create --topic recommendations --partitions 1 --replication-factor 1 ; \
+                       sleep infinity'"
+    environment:
+      # The following settings are listed here only to satisfy the image's requirements.
+      # We override the image's `command` anyways, hence this container will not start a broker.
+      KAFKA_BROKER_ID: ignored
+      KAFKA_ZOOKEEPER_CONNECT: ignored
